@@ -11,23 +11,21 @@
 #define TABLE_SIZE 5
 
 // Birthday struct
-struct birthday {
+typedef struct {
 	char name[100];
 	int day;
 	int month;
 	int year;
-	struct list_head my_hash_list;
-};
+	struct list_head list;
+} birthday;
 
-
-struct bucket {
+typedef struct {
 	struct list_head bucket_list; // list_head for each bucket
-	unsigned int key;
+	int key;
 	birthday* value;
-};
+} bucket;
 
-
-static void birthday_hash_add(char birthday[]) {
+int birthday_hash_add(char birthday[]) {
 	int i = 0;
 	int alp = 0;
 
@@ -39,8 +37,6 @@ static void birthday_hash_add(char birthday[]) {
 //	unsigned int hashind = name_hash(b.name);
 //	hlist_add_head(&b.my_hash_list, &(birthday_table.list_head[hashind]));
 }
-
-
 
 LIST_HEAD(birthday_list);
 LIST_HEAD(bucket_glb);
@@ -59,7 +55,7 @@ static int birthday_hash_init (void) {
 
 	birthday *person;
 	bucket *buk;
-	unsigned int i, hs;
+	int i, hs;
 	for (i = 0; i < TABLE_SIZE; i++) {
 		person = kmalloc(sizeof(*person), GFP_KERNEL);
 		person->day = i + 12;
@@ -83,11 +79,11 @@ static int birthday_hash_init (void) {
 	}
 
 	for(i = 0; i < TABLE_SIZE; i++) {
-		bck = kmalloc(sizeof(*bck), GFP_KERNEL);
-		bck->key = i +1;
-		bck->value = NULL;
-		INIT_LIST_HEAD(&bck->bucket_list);
-		list_add_tail(&bck->bucket_list, &bucket_glb);
+		buk = kmalloc(sizeof(*buk), GFP_KERNEL);
+		buk->key = i +1;
+		buk->value = NULL;
+		INIT_LIST_HEAD(&buk->bucket_list);
+		list_add_tail(&buk->bucket_list, &bucket_glb);
 	}
 
 	i = 0;
@@ -101,12 +97,12 @@ static int birthday_hash_init (void) {
 		INIT_LIST_HEAD(&person->list);
 
 		hs = birthday_hash_add(head->name);
-		list_for_each_entry(buk, &bucket_glb, bucket_list) {
-			if(buk->key == hs && buk->value != NULL) {
-				list_add_tail(&person->list, &buk->value->list);
+		list_for_each_entry(buckethead, &bucket_glb, bucket_list) {
+			if(buckethead->key == hs && buckethead->value != NULL) {
+				list_add_tail(&person->list, &buckethead->value->list);
 			}
-			if(buk->key == hs && buk->value == NULL) {
-				buk->value = person;
+			if(buckethead->key == hs && buckethead->value == NULL) {
+				buckethead->value = person;
 			}
 		}
 		i++;
@@ -115,11 +111,11 @@ static int birthday_hash_init (void) {
 	i = 0;
 	birthday *ptk;
 
-	list_for_each_entry(buk, &bucket_glb, bucket_list) {
-		if (buk -> value != NULL) {
-			bucket_list_tbl = buk->value->list;
+	list_for_each_entry(buckethead, &bucket_glb, bucket_list) {
+		if (buckethead-> value != NULL) {
+			bucket_list_tbl = buckethead->value->list;
 			struct list_head* tmp;
-			list_for_each(tmp, &(bucket_list_tbl)) {
+			list_for_each(tmp, &(buckethead->value->list)) {
 				birthday *tp = list_entry(tmp, birthday, list);
 				printk("Name: %s, Day: %d, Month: %d, Year: %d", tp->name, tp->day, tp->month, tp->year);
 			}
