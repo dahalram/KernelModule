@@ -8,7 +8,7 @@
 //#include <linux/hashtable.h> // Needed for hashtable
 
 //#define NUM_OF_BIRTHDAYS 5
-#define TABLE_SIZE 10
+#define TABLE_SIZE 5
 
 // Birthday struct
 struct birthday {
@@ -21,10 +21,12 @@ struct birthday {
 
 
 struct bucket {
-	struct list_head bucket; // list_head for each bucket
+	struct list_head bucket_list; // list_head for each bucket
 	unsigned int key;
 	birthday* value;
 };
+
+
 
 /*
 struct HashTable {
@@ -33,7 +35,6 @@ struct HashTable {
 };
 
 static struct HashTable birthday_table;
-*/
 
 unsigned int name_hash(const char *str) {
 	int ch;
@@ -78,7 +79,7 @@ static void make_new_table(unsigned int n) {
 	birthday_table.list_head = h1;
 	birthday_table.size = n;
 }
-
+*/
 /*#define HASH_TABLE(birthday_hash, BITS)\
 	struct hlist_head birthday_hash[1 << (BITS)] =\ 
 		{ [0 ... ((1 << (BITS)) -1)] = HLIST_HEAD_INIT}
@@ -91,9 +92,17 @@ static void make_new_table(unsigned int n) {
 
 */
 
-static void birthday_hash_add(struct birthday b) {
-	unsigned int hashind = name_hash(b.name);
-	hlist_add_head(&b.my_hash_list, &(birthday_table.list_head[hashind]));
+static void birthday_hash_add(char birthday[]) {
+	int i = 0;
+	int alp = 0;
+
+	while (birthday[i] != '\0') {
+		alp += (int) birthday[i];
+		i++;
+	}
+	return alp%5;
+//	unsigned int hashind = name_hash(b.name);
+//	hlist_add_head(&b.my_hash_list, &(birthday_table.list_head[hashind]));
 }
 
 struct birthday first = {
@@ -136,6 +145,10 @@ struct birthday fifth = {
 	//.my_hash_list = 0
 };
 
+LIST_HEAD(birthday_list);
+LIST_HEAD(bucket_glb);
+LIST_HEAD(bucket_list_tbl);
+
 static int birthday_hash_init (void) {
 	/*struct birthday *first, *second, *third, *fourth, *fifth, *tmp;
 
@@ -176,8 +189,76 @@ static int birthday_hash_init (void) {
 	fifth->day = 5;
 	fifth->month = 5;
 	fifth->year = 2005; */
-	unsigned int n = 5;
+	printk(KERN_INFO "Loading Module \n");
 
+	char persons[TABLE_SIZE][100];
+	strcpy(persons[0], "Ashim");
+	strcpy(persons[1], "Abdulla");
+	strcpy(persons[2], "Babloo");
+	strcpy(persons[3], "Pyakurel");
+	strcpy(persons[4], "Asish");
+
+	birthday *person;
+	bucket *buk;
+	unsigned int i, hs;
+	for (i = 0; i < TABLE_SIZE; i++) {
+		person = kmalloc(sizeof(*person), GFP_KERNEL);
+		person->day = i + 12;
+		person->month = i + 3;
+		person->year = i + 2000;
+		strcpy(person->name, persons[i]);
+		INIT_LIST_HEAD(&person->list);
+		list_add_tail(&person->list, &birthday_list);
+	}
+	birthday birth[TABLE_SIZE];
+	birthday *head;
+	bucket *buckethead;
+	i = 0;
+	list_for_each_entry(head, &birthday_list, list) {
+		birth[i].day = head->day;
+		birth[i].month = head->month;
+		birth[i].year = head->year;
+		strcpy(birth[i].name, persons[i]);
+		printk(KERN_INFO "Day: %d, Month: %d, Year: %d", head->day, head->month, head->year);
+		i++;
+	}
+
+	for(i = 0; i < TABLE_SIZE; i++) {
+		bck = kmalloc(sizeof(*bck), GFP_KERNEL);
+		bck->id = i +1;
+		bck->value = NULL;
+		INIT_LIST_HEAD(&bck->bucket_list);
+		list_add_tail(&bck->bucket_list, &bucket_glb);
+	}
+
+	i = 0;
+	list_for_each_entry(head, &birthday_list, list) {
+		printk(KERN_INFO "Name: %s, Day: %d, Month: %d, Year: %d\n", head->name, head->day, head->month, head->year);
+		person = kmalloc(sizeof(*person), GFP_KERNEL);
+		strcpy(person->name, birth[i].name);
+		person->day = birth[i].day;
+		person->month = birth[i].month;
+		person->year = birth[i].year;
+		INIT_LIST_HEAD(&person->list);
+
+		hs = birthday_hash_add(head->name);
+		list_for_each_entry(buk, &bucket_glb, bucket_list) {
+			if(buk->id == hs && buk->value != NULL) {
+				list_add_tail(&person->list, &buk->value->list);
+			}
+			if(buk->id == hs && buk->value == NULL) {
+				buk->value = person;
+			}
+		}
+		i++;
+	}
+
+	i = 0;
+	birthday *ptk;
+
+	list_for_each_entry(buk, &bucket_glb, bucket_list) {
+		
+	}
 	make_new_table(n);
 
 	birthday_hash_add(first);
@@ -201,7 +282,7 @@ static void birthday_hash_clean(void) {
 	//kfree(birthday_table.list_head);
 	printk(KERN_INFO "Removing module\n");
 	birthday *head_, *next;
-	list_for_each_entry_safe(head_, next, &birthday, list) {
+	list_for_each_entry_safe(head_, next, &birthday_list, list) {
 		printk(KERN_INFO "Removing items: day %d, month %d, year %d \n", head_->day, head_->month, head_->year);
 		list_del(&head_->list);
 		kfree(ptr);
